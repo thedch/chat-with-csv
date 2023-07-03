@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from 'react-router-dom';
-
+import { useState } from 'react';
 
 function HistoryPage() {
-  const sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+  const [sessions, setSessions] = useState(JSON.parse(localStorage.getItem('sessions') || '[]'));
   const navigate = useNavigate();
 
   const handleSessionClick = (sessionId: string) => {
@@ -13,6 +13,12 @@ function HistoryPage() {
   const handleNewSessionClick = () => {
     const newSessionId = uuidv4();
     navigate(`/chat/${newSessionId}`);
+  };
+
+  const handleSessionDelete = (sessionId: string) => {
+    const updatedSessions = sessions.filter(session => session.id !== sessionId);
+    localStorage.setItem('sessions', JSON.stringify(updatedSessions));
+    setSessions(updatedSessions);
   };
 
   return (
@@ -31,12 +37,23 @@ function HistoryPage() {
             {sessions.map((session: any) => (
               <li
                 key={session.id}
-                onClick={() => handleSessionClick(session.id)}
                 className="px-4 py-2 rounded-lg shadow-md hover:shadow-lg cursor-pointer bg-gray-100"
               >
-                <div className="text-lg font-semibold text-gray-900">Session {session.id.substring(0, 8)}...</div>
+                <div
+                  onClick={() => handleSessionClick(session.id)}
+                  className="text-lg font-semibold text-gray-900">Session {session.id.substring(0, 8)}...
+                </div>
                 <div className="text-sm font-medium text-gray-600">Filename: {session.name}</div>
                 <div className="text-sm font-medium text-gray-600">Number of messages: {session.messages.length}</div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // prevent triggering of click on parent element
+                    handleSessionDelete(session.id);
+                  }}
+                  className="mt-2 px-2 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete Session
+                </button>
               </li>
             ))}
           </ul>
@@ -44,7 +61,6 @@ function HistoryPage() {
       </div>
     </div>
   );
-
 }
 
 export default HistoryPage;
