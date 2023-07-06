@@ -9,7 +9,8 @@ import HistoryPage from './History'
 import { useNavigate } from 'react-router-dom';
 
 
-function CSVUploader({ setSessionId, sessionId }: { setSessionId: (id: string) => void, sessionId: string | null }) {
+function CSVUploader({ setRawCSVData, sessionId }: { setRawCSVData: any, sessionId: string | null }) {
+
   const [csvData, setCsvData] = useState<string[][]>([])
   const [isFileUploaded, setIsFileUploaded] = useState(false);
 
@@ -22,13 +23,14 @@ function CSVUploader({ setSessionId, sessionId }: { setSessionId: (id: string) =
       const reader = new FileReader()
       reader.onload = (e) => {
         const csvText = e.target?.result as string
+        setRawCSVData(csvText)
         const rows = csvText.split('\n').map(row => row.split(','))
         setCsvData(rows)
         setIsFileUploaded(true)  // file upload successful, change state
 
         const newSessionId = uuidv4(); // generate a unique ID for this session
         console.log('!!! New session ID', newSessionId)
-        setSessionId(newSessionId); // notify the Chat component of the new session ID
+        // setSessionId(newSessionId); // notify the Chat component of the new session ID
 
         // Save to local storage
         const sessions = JSON.parse(localStorage.getItem('sessions') || '[]')
@@ -52,6 +54,7 @@ function CSVUploader({ setSessionId, sessionId }: { setSessionId: (id: string) =
       const currentSession = sessions.find(session => session.id === sessionId)
       if (currentSession) {
         setCsvData(currentSession.data)
+        setRawCSVData(currentSession.data.join('\n'))
         setIsFileUploaded(true)
       }
     }
@@ -68,7 +71,7 @@ function CSVUploader({ setSessionId, sessionId }: { setSessionId: (id: string) =
           onClick={handleBackClick}
           className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600 transition-colors"
         >
-          Back to History
+          Main Page
         </button>
         <label className="flex items-center px-4 py-2 text-white bg-blue-500 rounded cursor-pointer hover:bg-blue-600">
           <span className="mr-2">{isFileUploaded ? "Try another file" : "Upload file"}</span>
@@ -106,7 +109,7 @@ function CSVUploader({ setSessionId, sessionId }: { setSessionId: (id: string) =
 
 function Chat() {
   const { sessionId } = useParams(); // this gets the sessionId from the route
-  const [localSessionId, setLocalSessionId] = useState<string | null>(sessionId);
+  // const [localSessionId, setLocalSessionId] = useState<string | null>(sessionId);
 
   // Load pre-existing messages from local storage
   let initialMessages = [];
@@ -118,28 +121,48 @@ function Chat() {
     }
   }
 
-  const { messages, input, handleInputChange, handleSubmit } = useChat( {id: 'daniel-test', initialMessages } )
+  const [rawCSVData, setRawCSVData] = useState('');
+  const { setMessages, messages, input, handleInputChange, handleSubmit } = useChat( {id: sessionId })
 
   useEffect(() => {
-    if (localSessionId) {
+    if (sessionId) {
       const sessions = JSON.parse(localStorage.getItem('sessions') || '[]')
-      const currentSession = sessions.find(session => session.id === localSessionId)
+      const currentSession = sessions.find(session => session.id === sessionId)
       if (currentSession) {
         currentSession.messages = messages
         localStorage.setItem('sessions', JSON.stringify(sessions))
       }
     }
-  }, [messages])
+  }, [messages]);
+
+  useEffect(() => {
+    if (rawCSVData) {
+
+      console.log('Hijacking message array')
+      // Copy the messages array and add a new message to the front:
+      const new_msgs = [...messages]
+      if (!new_msgs.length || new_msgs[0].id !== "CSV_DATA") {
+        console.log('Hijacking message array for real')
+        new_msgs.unshift({
+          id: "CSV_DATA",
+          role: 'user',
+          content: rawCSVData.substring(0, 5000) + '...',
+        })
+        setMessages(new_msgs)
+      }
+    }
+
+  }, [rawCSVData])
 
   return (
     <>
       <div className="flex flex-col min-h-screen bg-gray-50">
         <div className="flex-grow overflow-y-scroll">
           <header className="flex items-center justify-between p-6 bg-white border-b-2 border-gray-200">
-              <CSVUploader setSessionId={setLocalSessionId} sessionId={sessionId}/>
+            <CSVUploader setRawCSVData={setRawCSVData} sessionId={sessionId || ''}/>
           </header>
           <main className="p-6">
-            {messages.map(m => (
+            {messages.map(m => m.id !== 'CSV_DATA' && (
               <div key={m.id} className="flex items-start mb-4">
                 <div className={`rounded py-2 px-3 mr-2 text-sm font-medium ${m.role === 'user' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
                   {m.role}
